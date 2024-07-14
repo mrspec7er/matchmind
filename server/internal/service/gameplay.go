@@ -84,12 +84,7 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 		for i, score := range s.Scores {
 			switch resp.Type {
 			case "Question":
-				msgPayload, err := json.Marshal(fmt.Sprintf("Send question with id: %v", s.Scores[i].QuestionID))
-				if err != nil {
-					return 500, err
-				}
-				s.BroadcastMessage(msgType, msgPayload)
-				continue
+				s.RetrieveQuestion(msgType, s.Scores[i].QuestionID)
 
 			case "Response":
 				if score.RoomID == roomId {
@@ -124,15 +119,35 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 						s.BroadcastMessage(msgType, msgPayload)
 					}
 
-					// reset score
+					// reset response
 					s.Scores[i].Responses = []string{}
 					s.Scores[i].QuestionID += 1
 
 					fmt.Println("Question: ", s.Scores[i].QuestionID-1, "Total Win", s.Scores[i].TotalWins)
 
 				}
-
 			}
 		}
 	}
+}
+
+func (s *Service) RetrieveQuestion(msgType int, questionId int) error {
+	question := s.FilterQuestion(questionId)
+	msgPayload, err := json.Marshal(question)
+	if err != nil {
+		return err
+	}
+	s.BroadcastMessage(msgType, msgPayload)
+
+	return nil
+}
+
+func (s *Service) FilterQuestion(questionId int) *dto.Question {
+	for _, q := range dto.Questions {
+		if q.ID == questionId {
+			return &q
+		}
+	}
+
+	return nil
 }

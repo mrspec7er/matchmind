@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	route "github.com/mrspec7er/matchmind/server/internal/router"
 )
 
 func (s Config) RegisterRoutes() http.Handler {
@@ -17,6 +18,8 @@ func (s Config) RegisterRoutes() http.Handler {
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Hello There!"})
 	})
+
+	router.Route("/", route.Router())
 
 	return router
 }

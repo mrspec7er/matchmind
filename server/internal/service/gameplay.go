@@ -88,43 +88,8 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 
 			case "Response":
 				if score.RoomID == roomId {
-					s.Scores[i].Responses = append(s.Scores[i].Responses, resp.Response)
-				}
-
-				if score.RoomID == roomId && len(score.Responses) == len(s.Clients) {
-
-					matchStatus := true
-
-					for _, r := range score.Responses {
-						if r != score.Responses[0] {
-							matchStatus = false
-						}
-
-					}
-
-					if matchStatus {
-						msgPayload, err := json.Marshal("Match")
-						if err != nil {
-							return 500, err
-						}
-						s.Scores[i].TotalWins += 1
-						s.BroadcastMessage(msgType, msgPayload)
-					}
-
-					if !matchStatus {
-						msgPayload, err := json.Marshal("Not Match")
-						if err != nil {
-							return 500, err
-						}
-						s.BroadcastMessage(msgType, msgPayload)
-					}
-
-					// reset response
-					s.Scores[i].Responses = []string{}
-					s.Scores[i].QuestionID += 1
-
-					fmt.Println("Question: ", s.Scores[i].QuestionID-1, "Total Win", s.Scores[i].TotalWins)
-
+					score.Responses = append(score.Responses, resp.Response)
+					s.MatchingResponse(msgType, score)
 				}
 			}
 		}
@@ -150,4 +115,50 @@ func (s *Service) FilterQuestion(questionId int) *dto.Question {
 	}
 
 	return nil
+}
+
+func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
+	if len(score.Responses) < len(s.Clients) { // TODO checking client per room
+		return
+	}
+	matchStatus := true
+
+	for _, r := range score.Responses {
+		if r != score.Responses[0] {
+			matchStatus = false
+		}
+
+	}
+
+	if matchStatus {
+		msgPayload, err := json.Marshal("Match")
+		if err != nil {
+			s.SendErrorMessage("Failed to send match response")
+		}
+		score.TotalWins += 1
+		s.BroadcastMessage(msgType, msgPayload)
+	}
+
+	if !matchStatus {
+		msgPayload, err := json.Marshal("Not Match")
+		if err != nil {
+			s.SendErrorMessage("Failed to send match response")
+		}
+		s.BroadcastMessage(msgType, msgPayload)
+	}
+
+	// reset response
+	score.Responses = []string{}
+	score.QuestionID += 1
+
+	fmt.Println("Question: ", score.QuestionID-1, "Total Win", score.TotalWins)
+
+}
+
+func (s *Service) SendErrorMessage(message string) {
+	msgPayload, err := json.Marshal(message)
+	if err != nil {
+		panic(err)
+	}
+	s.BroadcastMessage(1, msgPayload)
 }

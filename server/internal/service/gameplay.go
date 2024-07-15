@@ -82,12 +82,12 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 		}
 
 		for i, score := range s.Scores {
-			switch resp.Type {
-			case "Question":
-				s.RetrieveQuestion(msgType, s.Scores[i].QuestionID)
+			if score.RoomID == roomId {
+				switch resp.Type {
+				case "Question":
+					s.RetrieveQuestion(msgType, s.Scores[i].QuestionID)
 
-			case "Response":
-				if score.RoomID == roomId {
+				case "Response":
 					playerResponse, ok := resp.Content.(string)
 					if !ok {
 						s.SendMessage("Error", "Server", false, "Bad request")

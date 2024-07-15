@@ -1,9 +1,10 @@
 package dto
 
 type Response struct {
-	Type     string `json:"type"`
-	PlayerID string `json:"playerId"`
-	Response string `json:"response"`
+	Type    string `json:"type"`
+	Sender  string `json:"sender"`
+	Status  bool   `json:"status"`
+	Content any    `json:"content"`
 }
 
 type Score struct {

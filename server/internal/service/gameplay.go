@@ -88,7 +88,11 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 
 			case "Response":
 				if score.RoomID == roomId {
-					score.Responses = append(score.Responses, resp.Response)
+					playerResponse, ok := resp.Content.(string)
+					if !ok {
+						s.SendMessage("Error", "Server", false, "Bad request")
+					}
+					score.Responses = append(score.Responses, playerResponse)
 					s.MatchingResponse(msgType, score)
 				}
 			}
@@ -98,11 +102,7 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 
 func (s *Service) RetrieveQuestion(msgType int, questionId int) error {
 	question := s.FilterQuestion(questionId)
-	msgPayload, err := json.Marshal(question)
-	if err != nil {
-		return err
-	}
-	s.BroadcastMessage(msgType, msgPayload)
+	s.SendMessage("Question", "Server", true, question)
 
 	return nil
 }
@@ -131,20 +131,23 @@ func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
 	}
 
 	if matchStatus {
-		msgPayload, err := json.Marshal("Match")
-		if err != nil {
-			s.SendErrorMessage("Failed to send match response")
-		}
 		score.TotalWins += 1
-		s.BroadcastMessage(msgType, msgPayload)
+		// msgPayload, err := json.Marshal("Match")
+		// if err != nil {
+		// 	s.SendMessage("Error", "Server", false, "Cannot process result")
+		// }
+		// s.BroadcastMessage(msgType, msgPayload)
+
+		s.SendMessage("Result", "Server", true, "Result Match")
 	}
 
 	if !matchStatus {
-		msgPayload, err := json.Marshal("Not Match")
-		if err != nil {
-			s.SendErrorMessage("Failed to send match response")
-		}
-		s.BroadcastMessage(msgType, msgPayload)
+		// msgPayload, err := json.Marshal("Not Match")
+		// if err != nil {
+		// 	s.SendMessage("Error", "Server", false, "Cannot process result")
+		// }
+		// s.BroadcastMessage(msgType, msgPayload)
+		s.SendMessage("Result", "Server", false, "Result Not Match")
 	}
 
 	// reset response
@@ -155,8 +158,14 @@ func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
 
 }
 
-func (s *Service) SendErrorMessage(message string) {
-	msgPayload, err := json.Marshal(message)
+func (s *Service) SendMessage(respType string, sender string, status bool, content any) {
+	payload := &dto.Response{
+		Type:    respType,
+		Sender:  sender,
+		Status:  status,
+		Content: content,
+	}
+	msgPayload, err := json.Marshal(payload)
 	if err != nil {
 		panic(err)
 	}

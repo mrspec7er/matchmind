@@ -29,8 +29,9 @@ func (c *Controller) SendResponse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Controller) CreateRoom(w http.ResponseWriter, r *http.Request) {
+	roomId := chi.URLParam(r, "roomId")
 
-	room, err := c.Service.CreateRoom()
+	room, err := c.Service.CreateRoom(roomId)
 	if err != nil {
 		c.Response.GeneralErrorHandler(w, 500, err)
 		return

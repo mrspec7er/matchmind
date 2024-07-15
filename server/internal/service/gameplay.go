@@ -10,7 +10,8 @@ import (
 )
 
 type Client struct {
-	conn *websocket.Conn
+	conn   *websocket.Conn
+	roomId string
 }
 
 type Service struct {
@@ -28,8 +29,11 @@ func (s *Service) WebsocketConnection() websocket.Upgrader {
 	return upgrader
 }
 
-func (s *Service) BroadcastMessage(msgType int, message []byte) {
+func (s *Service) BroadcastMessage(roomId string, msgType int, message []byte) {
 	for _, client := range s.Clients {
+		if client.roomId != roomId {
+			continue
+		}
 		err := client.conn.WriteMessage(msgType, message)
 		if err != nil {
 			fmt.Println("error while broadcasting: ", err)
@@ -38,9 +42,9 @@ func (s *Service) BroadcastMessage(msgType int, message []byte) {
 	}
 }
 
-func (s *Service) CreateRoom() (*dto.Score, error) {
+func (s *Service) CreateRoom(roomId string) (*dto.Score, error) {
 	newServer := &dto.Score{
-		RoomID:     "ROOM_01",
+		RoomID:     roomId,
 		TotalWins:  0,
 		QuestionID: 0,
 	}
@@ -53,7 +57,8 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 	defer conn.Close()
 
 	client := &Client{
-		conn: conn,
+		conn:   conn,
+		roomId: roomId,
 	}
 	s.Clients = append(s.Clients, client)
 
@@ -85,12 +90,12 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 			if score.RoomID == roomId {
 				switch resp.Type {
 				case "Question":
-					s.RetrieveQuestion(msgType, s.Scores[i].QuestionID)
+					s.RetrieveQuestion(roomId, msgType, s.Scores[i].QuestionID)
 
 				case "Response":
 					playerResponse, ok := resp.Content.(string)
 					if !ok {
-						s.SendMessage("Error", "Server", false, "Bad request")
+						s.SendMessage(roomId, "Error", "Server", false, "Bad request")
 					}
 					score.Responses = append(score.Responses, playerResponse)
 					s.MatchingResponse(msgType, score)
@@ -100,9 +105,9 @@ func (s *Service) ProcessMessage(conn *websocket.Conn, roomId string) (int, erro
 	}
 }
 
-func (s *Service) RetrieveQuestion(msgType int, questionId int) error {
+func (s *Service) RetrieveQuestion(roomId string, msgType int, questionId int) error {
 	question := s.FilterQuestion(questionId)
-	s.SendMessage("Question", "Server", true, question)
+	s.SendMessage(roomId, "Question", "Server", true, question)
 
 	return nil
 }
@@ -118,7 +123,13 @@ func (s *Service) FilterQuestion(questionId int) *dto.Question {
 }
 
 func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
-	if len(score.Responses) < len(s.Clients) { // TODO checking client per room
+	var playerCount int
+	for _, c := range s.Clients {
+		if c.roomId == score.RoomID {
+			playerCount += 1
+		}
+	}
+	if len(score.Responses) < playerCount {
 		return
 	}
 	matchStatus := true
@@ -132,22 +143,11 @@ func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
 
 	if matchStatus {
 		score.TotalWins += 1
-		// msgPayload, err := json.Marshal("Match")
-		// if err != nil {
-		// 	s.SendMessage("Error", "Server", false, "Cannot process result")
-		// }
-		// s.BroadcastMessage(msgType, msgPayload)
-
-		s.SendMessage("Result", "Server", true, "Result Match")
+		s.SendMessage(score.RoomID, "Result", "Server", true, "Result Match")
 	}
 
 	if !matchStatus {
-		// msgPayload, err := json.Marshal("Not Match")
-		// if err != nil {
-		// 	s.SendMessage("Error", "Server", false, "Cannot process result")
-		// }
-		// s.BroadcastMessage(msgType, msgPayload)
-		s.SendMessage("Result", "Server", false, "Result Not Match")
+		s.SendMessage(score.RoomID, "Result", "Server", false, "Result Not Match")
 	}
 
 	// reset response
@@ -158,7 +158,7 @@ func (s *Service) MatchingResponse(msgType int, score *dto.Score) {
 
 }
 
-func (s *Service) SendMessage(respType string, sender string, status bool, content any) {
+func (s *Service) SendMessage(roomId string, respType string, sender string, status bool, content any) {
 	payload := &dto.Response{
 		Type:    respType,
 		Sender:  sender,
@@ -169,5 +169,5 @@ func (s *Service) SendMessage(respType string, sender string, status bool, conte
 	if err != nil {
 		panic(err)
 	}
-	s.BroadcastMessage(1, msgPayload)
+	s.BroadcastMessage(roomId, 1, msgPayload)
 }

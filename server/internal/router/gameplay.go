@@ -10,6 +10,6 @@ func Router() func(chi.Router) {
 
 	return func(r chi.Router) {
 		r.Get("/{roomId}", c.SendResponse)
-		r.Post("/rooms", c.CreateRoom)
+		r.Post("/rooms/{roomId}", c.CreateRoom)
 	}
 }
